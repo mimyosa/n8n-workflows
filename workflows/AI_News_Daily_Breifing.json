@@ -1,0 +1,349 @@
+{
+  "name": "AI News Daily Breifing",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        208
+      ],
+      "id": "a8f299ec-3041-4094-bb74-1d0b46b44276",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "numberInputs": 4
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        448,
+        176
+      ],
+      "id": "9ee4d56c-da40-4cbf-a548-177c005340e1",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst seen = new Set();\nconst merged = [];\n\nfor (const item of items) {\n  const title = item.json.title || '';\n  if (title && !seen.has(title)) {\n    seen.add(title);\n    merged.push({\n      title: item.json.title || '',\n      url: item.json.link || item.json.url || '',\n      pubDate: item.json.pubDate || item.json.isoDate || '',\n      summary: item.json.contentSnippet || item.json.content || ''\n    });\n  }\n}\n\nmerged.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));\nconst top10 = merged.slice(0, 5);\n\nconst newsText = top10.map((n, i) => \n  `${i + 1}. ${n.title}\\n   URL: ${n.url}\\n   날짜: ${n.pubDate}`\n).join('\\n\\n');\n\nreturn [{ json: { newsText } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        208
+      ],
+      "id": "9e560817-96f6-4083-9e88-578b47bead77",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        976,
+        432
+      ],
+      "id": "3d0f2fb7-0e23-41ed-9bce-3fab8dedf29b",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "A8HsZg9TpTXHutSc",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "text": "=🤖 AI 뉴스 데일리 브리핑\n📅 {{ $now.toFormat('yyyy-MM-dd') }}\n\n{{ $json.text }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1248,
+        112
+      ],
+      "id": "82bc6297-6132-466a-a0e3-46c80cd5918c",
+      "name": "Send a text message",
+      "webhookId": "2850eb88-6f9c-4fe7-adc6-1465aca8d97f",
+      "credentials": {
+        "telegramApi": {
+          "id": "7ednz3QVMTsrn61q",
+          "name": "Telegram account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=다음 AI 관련 뉴스 목록을 한국어로 요약해줘.\n소프트웨어 개발자 및 개발사에게 실질적으로 유용한 뉴스를 우선 선별해줘.\n선별 기준:\n- AI 모델/API 업데이트 및 신규 기능 출시\n- 개발 도구, SDK, 라이브러리 관련 소식\n- LLM 성능 개선 및 새로운 기술 트렌드\n- 실제 개발에 활용 가능한 AI 서비스 변경사항\n\n각 뉴스의 핵심 내용을 2-3줄로 정리하고, 중요도 순으로 배열해줘.\n이모지를 활용해서 읽기 좋게 만들어줘.\n각 뉴스 마지막에 반드시 🔗 URL: [원본 URL] 형식으로 링크를 포함해줘.\n요약 결과만 출력하고 인사말이나 설명 문구는 절대 포함하지 마.\n\n뉴스 목록:\n{{ $json.newsText }}",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        896,
+        208
+      ],
+      "id": "f978d430-8a3f-4931-9e27-91ff043fa798",
+      "name": "Basic LLM Chain",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "YOUR_SLACK_CHANNEL_ID",
+          "mode": "id"
+        },
+        "text": "=🤖 AI 뉴스 데일리 브리핑\n📅 {{ $now.toFormat('yyyy-MM-dd') }}\n\n{{ $json.text }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false
+        }
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        1248,
+        304
+      ],
+      "id": "f416130f-a20e-4e5d-afb8-0f42607949fb",
+      "name": "Send a message",
+      "webhookId": "334e7f29-00a9-4829-af3f-efe91490ac32",
+      "credentials": {
+        "slackApi": {
+          "id": "tUFl150YKkGL5KR6",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://venturebeat.com/category/ai/feed/",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        224,
+        304
+      ],
+      "id": "52b79a77-96e8-45e1-923d-ad1e7e764d01",
+      "name": "RSS Read3",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        224,
+        112
+      ],
+      "id": "dc554c98-c6bc-4d62-8755-fa9ce9b66a86",
+      "name": "RSS Read2",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://techcrunch.com/tag/artificial-intelligence/feed/",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        224,
+        -80
+      ],
+      "id": "b15f734f-7816-48d6-9fba-20212cd91b04",
+      "name": "RSS Read1",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://news.google.com/rss/search?q=AI+API+OR+LLM+OR+AI+SDK+OR+AI+developer+OR+Claude+API+OR+OpenAI+API+OR+Gemini+API&hl=ko&gl=KR&ceid=KR:ko",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        224,
+        496
+      ],
+      "id": "a635c9e5-d38e-45b1-b9b9-a02683542bf4",
+      "name": "RSS Read4",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "RSS Read1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS Read2",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS Read3",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS Read4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a text message": {
+      "main": [
+        []
+      ]
+    },
+    "RSS Read3": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "RSS Read2": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "RSS Read1": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS Read4": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "5fcee1f4-607d-441b-9471-5cfb889e0511",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": ""
+  },
+  "id": "",
+  "tags": []
+}
